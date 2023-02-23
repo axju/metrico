@@ -161,4 +161,4 @@ cython_debug/
 
 # metrico stuff
 metrico.toml
-database*
+*.db
