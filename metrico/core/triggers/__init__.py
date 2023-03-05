@@ -1,6 +1,6 @@
 from logging import getLogger
 
-from metrico.utils import DynamicClassDict
+from metrico.core.utils import DynamicClassDict
 
 from .simple import SimpleTrigger
 

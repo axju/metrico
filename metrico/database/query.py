@@ -10,8 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import InstrumentedAttribute, Session
 from sqlalchemy.sql import Select, func
 
-from metrico.database.alchemy import Account, Base, Media, MediaComment
-from metrico.models import ModelStatus
+from metrico.database.models import Account, Base, Media, MediaComment
+from metrico.schemas import ModelStatus
 
 logger = getLogger(__name__)
 

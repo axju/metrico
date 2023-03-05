@@ -4,7 +4,7 @@ import importlib
 from importlib.metadata import entry_points
 from logging import Logger, getLogger
 
-from metrico.models import BasicClassConfig, BasicClassItem
+from metrico.schemas import BasicClassConfig, BasicClassItem
 
 from .misc import update_list
 
@@ -37,8 +37,8 @@ class DynamicClassDict(Generic[T]):
             module_str, cls_name = cls_str.split(":")
             module = importlib.import_module(module_str)
             self.cls[name] = getattr(module, cls_name)
-        except Exception:
-            self.logger.exception("Fail to load class for %s! Check your config file ;-)", name)
+        except ModuleNotFoundError:
+            self.logger.warning("Fail to load class %s", name)
 
     def _load_cls_from_conf(self):
         """
@@ -51,7 +51,10 @@ class DynamicClassDict(Generic[T]):
 
     def _load_cls_from_entry_points(self):
         for entry_point in entry_points().select(group=self.ENTRY_POINT):
-            self.cls[entry_point.name] = entry_point.load()
+            try:
+                self.cls[entry_point.name] = entry_point.load()
+            except ModuleNotFoundError:
+                self.logger.warning("Fail to load %s", entry_point.name)
 
     def create_obj(self, name: str):
         if name in self.config:

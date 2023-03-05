@@ -11,8 +11,8 @@ from sqlalchemy import delete
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 
-from metrico import models
-from metrico.database import alchemy
+from metrico import schemas
+from metrico.database import models
 
 logger = getLogger(__name__)
 
@@ -63,19 +63,19 @@ def add_rel_data(session: Session, obj_name, obj, name, model, fields):
         create_obj(session, model, **{obj_name: obj}, **fields)
 
 
-def create_account(session: Session, platform: str, data: models.Account | None, update: bool = True):
+def create_account(session: Session, platform: str, data: schemas.Account | None, update: bool = True):
     if data is None:
         return None
-    account = get_or_create(session, alchemy.Account, filter_by={"platform": platform, "identifier": data.identifier})
+    account = get_or_create(session, models.Account, filter_by={"platform": platform, "identifier": data.identifier})
     if update:
         update_account(session, account, data)
     return account
 
 
-def create_media(session: Session, account: alchemy.Account, data: models.Media, update: bool = True):
+def create_media(session: Session, account: models.Account, data: schemas.Media, update: bool = True):
     media = get_or_create(
         session,
-        alchemy.Media,
+        models.Media,
         filter_by={
             "account": account,
             "identifier": data.identifier,
@@ -87,35 +87,35 @@ def create_media(session: Session, account: alchemy.Account, data: models.Media,
     return media
 
 
-def get_account(session: Session, account_id: int | str) -> alchemy.Account | None:
+def get_account(session: Session, account_id: int | str) -> models.Account | None:
     if isinstance(account_id, str):
-        return session.query(alchemy.Account).filter_by(info_name=account_id).one_or_none()
-    return session.query(alchemy.Account).filter_by(id=account_id).one_or_none()
+        return session.query(models.Account).filter_by(info_name=account_id).one_or_none()
+    return session.query(models.Account).filter_by(id=account_id).one_or_none()
 
 
 def update_account(
     session: Session,
-    account: alchemy.Account,
-    *args: models.Account | models.Created | models.AccountInfo | models.AccountStats | models.Subscription | None,
+    account: models.Account,
+    *args: schemas.Account | schemas.Created | schemas.AccountInfo | schemas.AccountStats | schemas.Subscription | None,
 ):
     for arg in args:
         match arg:
-            case models.Account():
+            case schemas.Account():
                 update_account(session, account, arg.created, arg.info, arg.stats)
 
-            case models.Created():
+            case schemas.Created():
                 if arg.value:
                     account.created_at = arg.value
 
-            case models.AccountInfo():
-                add_rel_data(session, "account", account, "info", alchemy.AccountInfo, asdict(arg))
+            case schemas.AccountInfo():
+                add_rel_data(session, "account", account, "info", models.AccountInfo, asdict(arg))
 
-            case models.AccountStats():
-                add_rel_data(session, "account", account, "stats", alchemy.AccountStats, asdict(arg))
+            case schemas.AccountStats():
+                add_rel_data(session, "account", account, "stats", models.AccountStats, asdict(arg))
 
-            case models.Subscription():
+            case schemas.Subscription():
                 subscribed_account = create_account(session, account.platform, arg.account)
-                get_or_create(session, alchemy.AccountSubscription, filter_by={"account": account, "subscribed_account": subscribed_account})
+                get_or_create(session, models.AccountSubscription, filter_by={"account": account, "subscribed_account": subscribed_account})
 
             case None:
                 pass
@@ -124,33 +124,33 @@ def update_account(
 
 
 def get_media(session: Session, media_id: int | str):
-    return session.query(alchemy.Media).filter_by(id=media_id).one_or_none()
+    return session.query(models.Media).filter_by(id=media_id).one_or_none()
 
 
 def update_media(
-    session: Session, media: alchemy.Media, *args: models.Media | models.Created | models.MediaInfo | models.MediaStats | models.MediaComment | None
+    session: Session, media: models.Media, *args: schemas.Media | schemas.Created | schemas.MediaInfo | schemas.MediaStats | schemas.MediaComment | None
 ):
     for arg in args:
         match arg:
-            case models.Media():
+            case schemas.Media():
                 update_media(session, media, arg.created, arg.info, arg.stats)
 
-            case models.Created():
+            case schemas.Created():
                 if arg.value:
                     media.created_at = arg.value
 
-            case models.MediaInfo():
-                add_rel_data(session, "media", media, "info", alchemy.MediaInfo, asdict(arg))
+            case schemas.MediaInfo():
+                add_rel_data(session, "media", media, "info", models.MediaInfo, asdict(arg))
 
-            case models.MediaStats():
-                add_rel_data(session, "media", media, "stats", alchemy.MediaStats, asdict(arg))
+            case schemas.MediaStats():
+                add_rel_data(session, "media", media, "stats", models.MediaStats, asdict(arg))
 
-            case models.MediaComment():
+            case schemas.MediaComment():
                 fields = asdict(arg.content)
                 fields["account"] = create_account(session, media.account.platform, arg.account) if arg.account else None
                 get_or_create(
                     session,
-                    alchemy.MediaComment,
+                    models.MediaComment,
                     filter_by={"media": media, "identifier": arg.identifier},
                     fields=fields,
                     update_fields=True,
@@ -162,12 +162,12 @@ def update_media(
                 logger.warning("Objects of type %s can not be updated with the media model", type(arg))
 
 
-def get_trigger_id(session: Session, trigger: alchemy.Trigger | str | int):
+def get_trigger_id(session: Session, trigger: models.Trigger | str | int):
     match trigger:
         case str():
             obj = get_trigger(session, trigger)
             return obj.id
-        case alchemy.Trigger():
+        case models.Trigger():
             return trigger.id
         case _:
             return trigger
@@ -175,16 +175,16 @@ def get_trigger_id(session: Session, trigger: alchemy.Trigger | str | int):
 
 def get_trigger(session: Session, trigger: str | int):
     if isinstance(trigger, str):
-        trigger = get_or_create(session, alchemy.Trigger, filter_by={"name": trigger})
-        # if isinstance(trigger, alchemy.Trigger) and trigger.id is None:
+        trigger = get_or_create(session, models.Trigger, filter_by={"name": trigger})
+        # if isinstance(trigger, models.Trigger) and trigger.id is None:
         #     session.commit()
         return trigger
-    return session.query(alchemy.Trigger).filter_by(id=trigger).one_or_none()
+    return session.query(models.Trigger).filter_by(id=trigger).one_or_none()
 
 
 def add_trigger_stats(
     session: Session,
-    trigger: alchemy.Trigger | str | int,
+    trigger: models.Trigger | str | int,
     success: bool,
     started: datetime,
     finished: datetime,
@@ -194,10 +194,10 @@ def add_trigger_stats(
     else:
         obj = trigger
 
-    obj.status = models.TriggerStatus.WAIT if success else models.TriggerStatus.ERROR
+    obj.status = schemas.TriggerStatus.WAIT if success else schemas.TriggerStatus.ERROR
     get_or_create(
         session,
-        alchemy.TriggerStats,
+        models.TriggerStats,
         filter_by={
             "trigger_id": obj.id,
         },
@@ -207,44 +207,44 @@ def add_trigger_stats(
 
 def add_to_trigger(
     session: Session,
-    trigger: alchemy.Trigger | str | int,
-    account: int | alchemy.Account | None = None,
-    media: int | alchemy.Media | None = None,
+    trigger: models.Trigger | str | int,
+    account: int | models.Account | None = None,
+    media: int | models.Media | None = None,
 ):
     trigger_id = get_trigger_id(session, trigger)
 
     match account:
         case int():
-            get_or_create(session, alchemy.TriggerAccount, filter_by={"trigger_id": trigger_id, "account_id": account})
-        case alchemy.Account():
-            get_or_create(session, alchemy.TriggerAccount, filter_by={"trigger_id": trigger_id, "account_id": account.id})
+            get_or_create(session, models.TriggerAccount, filter_by={"trigger_id": trigger_id, "account_id": account})
+        case models.Account():
+            get_or_create(session, models.TriggerAccount, filter_by={"trigger_id": trigger_id, "account_id": account.id})
 
     match media:
         case int():
-            get_or_create(session, alchemy.TriggerMedia, filter_by={"trigger_id": trigger_id, "media_id": media})
-        case alchemy.Account():
-            get_or_create(session, alchemy.TriggerMedia, filter_by={"trigger_id": trigger_id, "media_id": media.id})
+            get_or_create(session, models.TriggerMedia, filter_by={"trigger_id": trigger_id, "media_id": media})
+        case models.Account():
+            get_or_create(session, models.TriggerMedia, filter_by={"trigger_id": trigger_id, "media_id": media.id})
 
 
 def remove_from_trigger(
     session: Session,
-    trigger: alchemy.Trigger | str | int,
-    account: int | alchemy.Account | None = None,
-    media: int | alchemy.Media | None = None,
+    trigger: models.Trigger | str | int,
+    account: int | models.Account | None = None,
+    media: int | models.Media | None = None,
 ):
     trigger_id = get_trigger_id(session, trigger)
 
     stmt = None
     match account:
         case int():
-            stmt = delete(alchemy.TriggerAccount).where(alchemy.TriggerAccount.trigger_id == trigger_id, alchemy.TriggerAccount.account_id == account)
-        case alchemy.Account():
-            stmt = delete(alchemy.TriggerAccount).where(alchemy.TriggerAccount.trigger_id == trigger_id, alchemy.TriggerAccount.account_id == account.id)
+            stmt = delete(models.TriggerAccount).where(models.TriggerAccount.trigger_id == trigger_id, models.TriggerAccount.account_id == account)
+        case models.Account():
+            stmt = delete(models.TriggerAccount).where(models.TriggerAccount.trigger_id == trigger_id, models.TriggerAccount.account_id == account.id)
     match media:
         case int():
-            stmt = delete(alchemy.TriggerMedia).where(alchemy.TriggerMedia.trigger_id == trigger_id, alchemy.TriggerMedia.media_id == media)
-        case alchemy.Account():
-            stmt = delete(alchemy.TriggerMedia).where(alchemy.TriggerMedia.trigger_id == trigger_id, alchemy.TriggerMedia.media_id == media.id)
+            stmt = delete(models.TriggerMedia).where(models.TriggerMedia.trigger_id == trigger_id, models.TriggerMedia.media_id == media)
+        case models.Account():
+            stmt = delete(models.TriggerMedia).where(models.TriggerMedia.trigger_id == trigger_id, models.TriggerMedia.media_id == media.id)
 
     if stmt is not None:
         session.execute(stmt)

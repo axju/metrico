@@ -5,10 +5,9 @@ from urllib import parse as url_parse
 
 from pyyoutube import Api
 
-from metrico import models
-from metrico.hunting.utils import MultiObjCaller
-
-from .basic import BasicHunter
+from metrico import schemas
+from metrico.core.hunting.basic import BasicHunter
+from metrico.core.hunting.utils import MultiObjCaller
 
 
 class YoutubeHunter(BasicHunter):
@@ -21,16 +20,16 @@ class YoutubeHunter(BasicHunter):
             return Api(api_key=key)
         return None
 
-    def _find_accounts(self, name: str, amount: int = 10, full: bool = False) -> Iterator[models.Account]:
+    def _find_accounts(self, name: str, amount: int = 10, full: bool = False) -> Iterator[schemas.Account]:
         result = self.api.search_by_keywords(q=name, search_type=["channel"], count=amount)
         for item in result.items:
             if full:
                 if account := self.get_account_data(item.id.channelId):
                     yield account
             else:
-                yield models.Account(identifier=item.id.channelId, info=models.AccountInfo(name=item.snippet.title, bio=item.snippet.description))
+                yield schemas.Account(identifier=item.id.channelId, info=schemas.AccountInfo(name=item.snippet.title, bio=item.snippet.description.strip()))
 
-    def analyze(self, value: Any, amount: int = 10, full: bool = False) -> Iterator[models.Account | models.Media]:
+    def analyze(self, value: Any, amount: int = 10, full: bool = False) -> Iterator[schemas.Account | schemas.Media]:
         if isinstance(value, str):
             url = url_parse.urlparse(value)
             if url.hostname and url.hostname.find("youtube") != -1:
@@ -49,7 +48,7 @@ class YoutubeHunter(BasicHunter):
             else:
                 yield from self._find_accounts(value, amount, full)
 
-    def get_account_data(self, identifier: str) -> models.Account | None:
+    def get_account_data(self, identifier: str) -> schemas.Account | None:
         channel_by_id = self.api.get_channel_info(channel_id=identifier)
         if channel_by_id is None or channel_by_id.items is None or len(channel_by_id.items) == 0:
             return None
@@ -59,11 +58,11 @@ class YoutubeHunter(BasicHunter):
             iter_subscriptions = self.iter_account_subscriptions(identifier, amount=0)
             subscriptions = len(list(iter_subscriptions)) if iter_subscriptions is not None else None
 
-        return models.Account(
+        return schemas.Account(
             identifier=identifier,
-            created=models.Created(datetime.fromisoformat(channel_by_id.items[0].snippet.publishedAt[:19])),
-            info=models.AccountInfo(name=channel_by_id.items[0].snippet.title, bio=channel_by_id.items[0].snippet.description),
-            stats=models.AccountStats(
+            created=schemas.Created(datetime.fromisoformat(channel_by_id.items[0].snippet.publishedAt[:19])),
+            info=schemas.AccountInfo(name=channel_by_id.items[0].snippet.title, bio=channel_by_id.items[0].snippet.description.strip()),
+            stats=schemas.AccountStats(
                 medias=int(channel_by_id.items[0].statistics.videoCount or 0),
                 views=int(channel_by_id.items[0].statistics.viewCount or 0),
                 followers=int(channel_by_id.items[0].statistics.subscriberCount or 0),
@@ -71,19 +70,21 @@ class YoutubeHunter(BasicHunter):
             ),
         )
 
-    def get_media_data(self, identifier: str) -> models.Media | None:
+    def get_media_data(self, identifier: str) -> schemas.Media | None:
         videos = self.api.get_video_by_id(video_id=identifier)
         if videos is None or not videos.items:
             return None
 
         video = videos.items[0]
-        return models.Media(
+        return schemas.Media(
             identifier=identifier,
-            media_type=models.MediaType.VIDEO,
-            account=models.Account(identifier=video.snippet.channelId),
-            created=models.Created(datetime.strptime(video.snippet.publishedAt, "%Y-%m-%dT%H:%M:%SZ")),
-            info=models.MediaInfo(title=video.snippet.title, caption=video.snippet.description, disable_comments=video.statistics.commentCount is None),
-            stats=models.MediaStats(
+            media_type=schemas.MediaType.VIDEO,
+            account=schemas.Account(identifier=video.snippet.channelId),
+            created=schemas.Created(datetime.strptime(video.snippet.publishedAt, "%Y-%m-%dT%H:%M:%SZ")),
+            info=schemas.MediaInfo(
+                title=video.snippet.title, caption=video.snippet.description.strip(), disable_comments=video.statistics.commentCount is None
+            ),
+            stats=schemas.MediaStats(
                 comments=int(video.statistics.commentCount or 0),
                 likes=int(video.statistics.likeCount or 0),
                 views=int(video.statistics.viewCount or 0),
@@ -103,7 +104,7 @@ class YoutubeHunter(BasicHunter):
         for item in playlist.items:
             yield self.get_media_data(item.contentDetails.videoId)
 
-    def iter_account_subscriptions(self, identifier: str, amount: int = 0) -> Iterator[models.Subscription]:
+    def iter_account_subscriptions(self, identifier: str, amount: int = 0) -> Iterator[schemas.Subscription]:
         try:
             subscription_by_channel = self.api.get_subscription_by_channel(channel_id=identifier, count=amount or None)
             if subscription_by_channel.items is None:
@@ -113,25 +114,25 @@ class YoutubeHunter(BasicHunter):
         for subscription in subscription_by_channel.items:
             if subscription.snippet is None:
                 continue
-            yield models.Subscription(
-                account=models.Account(
+            yield schemas.Subscription(
+                account=schemas.Account(
                     identifier=subscription.snippet.resourceId.channelId,
-                    info=models.AccountInfo(name=subscription.snippet.title or None, bio=subscription.snippet.description or None),
-                    stats=models.AccountStats(medias=subscription.contentDetails.totalItemCount or None),
+                    info=schemas.AccountInfo(name=subscription.snippet.title or None, bio=subscription.snippet.description.strip() or None),
+                    stats=schemas.AccountStats(medias=subscription.contentDetails.totalItemCount or None),
                 )
             )
 
-    def iter_media_comments(self, identifier: str, amount: int = 0) -> Iterator[models.MediaComment]:
-        def get_comment_data(comment) -> models.MediaComment:
+    def iter_media_comments(self, identifier: str, amount: int = 0) -> Iterator[schemas.MediaComment]:
+        def get_comment_data(comment) -> schemas.MediaComment:
             account = None
             if comment.snippet.authorChannelId is not None:
-                account = models.Account(
-                    identifier=comment.snippet.authorChannelId.value, info=models.AccountInfo(name=comment.snippet.authorDisplayName or None)
+                account = schemas.Account(
+                    identifier=comment.snippet.authorChannelId.value, info=schemas.AccountInfo(name=comment.snippet.authorDisplayName or None)
                 )
-            return models.MediaComment(
+            return schemas.MediaComment(
                 identifier=comment.id,
                 account=account,
-                content=models.MediaCommentContent(
+                content=schemas.MediaCommentContent(
                     text=comment.snippet.textDisplay,
                     likes=comment.snippet.likeCount,
                     created_at=datetime.strptime(comment.snippet.publishedAt, "%Y-%m-%dT%H:%M:%SZ"),

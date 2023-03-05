@@ -1,5 +1,4 @@
-from metrico import MetricoCore
-from metrico.database.query import AccountOrder, AccountQuery, ModelStatus
+from metrico import AccountOrder, AccountQuery, MetricoCore, ModelStatus
 
 metrico = MetricoCore.default()
 

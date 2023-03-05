@@ -20,12 +20,20 @@ dependencies = [
     "alembic >= 1.9.2",
     "pydantic >= 1.10.4",
     "tomli >= 2.0.1; python_version<'3.11'",
-
-    "python-youtube",
-    "python-tiktok",
 ]
 
 [project.optional-dependencies]
+cli = ["rich"]
+tui = ["textual"]
+youtube = ["python-youtube"]
+tiktok = ["python-tiktok"]
+hunters = ["python-youtube", "python-tiktok"]
+full = [
+    "rich",
+    "textual",
+    "python-youtube",
+    "python-tiktok",
+]
 dev = [
     "pytest",
     "pytest-cov",
@@ -33,6 +41,7 @@ dev = [
     "Faker",
 
     "mypy",
+    "types-python-dateutil",
     "sqlalchemy[mypy]",
     "pylint",
     "pyupgrade",
@@ -51,11 +60,13 @@ dev = [
 "Homepage" = "https://github.com/axju/metrico"
 "Bug Tracker" = "https://github.com/axju/metrico/issues"
 
-[project.scripts]
-metrico = "metrico.__main__:main"
+[project.entry-points."metrico.hunters"]
+test = "metrico.hunters.test:TestHunter"
+youtube = "metrico.hunters.youtube:YoutubeHunter"
 
-#[project.entry-points."metrico.hunters"]
-#youtube = "metrico.hunting.hunters:YoutubeHunter"
+[project.scripts]
+metrico = "metrico.cli:main"
+metrico-tui = "metrico.tui:main"
 
 [tool.setuptools]
 packages = ["metrico"]
@@ -65,6 +76,12 @@ version = {attr = "metrico.__version__"}
 
 [tool.pytest.ini_options]
 minversion = "6.0"
+
+[tool.coverage.run]
+omit = [
+    "metrico/cli/*",
+    "metrico/tui/*",
+]
 
 [tool.coverage.report]
 fail_under = 50
@@ -162,15 +179,26 @@ deps =
     pytest-cov
     coverage
     Faker
+    rich
+    textual
+    python-youtube
+    python-tiktok
 commands =
     pytest -c pyproject.toml --cov=metrico tests
 [testenv:pylint]
-deps = pylint
+deps =
+    pylint
+    Faker
+    rich
+    textual
+    python-youtube
+    python-tiktok
 commands = pylint --rcfile pyproject.toml metrico
 [testenv:type]
 deps =
     mypy
     types-attrs
+    types-python-dateutil
     sqlalchemy[mypy]
 commands = mypy --config-file pyproject.toml -p metrico
 [testenv:safety]

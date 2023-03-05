@@ -7,11 +7,11 @@ from logging import getLogger
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 
-from metrico import models
-from metrico.database import alchemy, crud
+from metrico import schemas
+from metrico.database import crud, models
 
 if TYPE_CHECKING:
-    from metrico import MetricoHunter
+    from metrico.core import MetricoHunter
 
 
 logger = getLogger(__name__)
@@ -19,12 +19,12 @@ logger = getLogger(__name__)
 
 def update_account(
     session: Session,
-    account: alchemy.Account,
+    account: models.Account,
     hunter: MetricoHunter | None = None,
     media_count: int = 0,
     comment_count: int = -2,
     subscription_count: int = -1,
-    data: models.Account | None = None,
+    data: schemas.Account | None = None,
 ):
     """
     update an account with data
@@ -42,7 +42,7 @@ def update_account(
 
     if data is None:
         logger.warning("account:%8i - no data -> exit", account.id)
-        account.status = models.ModelStatus.FAIL
+        account.status = schemas.ModelStatus.FAIL
         # session.commit()
         return
 
@@ -66,7 +66,7 @@ def update_account(
 def update_account_medias(
     session: Session,
     hunter: MetricoHunter,
-    account: alchemy.Account,
+    account: models.Account,
     media_count: int = 0,
     comment_count: int = -1,
 ):
@@ -80,6 +80,9 @@ def update_account_medias(
     logger.info("account:%8i - update medias finished ", account.id)
     for item in hunter[account.platform].iter_account_media(account.identifier, amount=media_count):
         media = crud.create_media(session, account, item)
+        if media is None:
+            logger.warning("account:%8i - no media ", account.id)
+            continue
         update_media(session, hunter, media, comment_count, item)
     logger.info("account:%8i - update medias finished ", account.id)
 
@@ -87,7 +90,7 @@ def update_account_medias(
 def update_account_subscriptions(
     session: Session,
     hunter: MetricoHunter,
-    account: alchemy.Account,
+    account: models.Account,
     subscription_count: int = 0,
 ):
     account.subscriptions_last_update = func.now()
@@ -106,9 +109,9 @@ def update_account_subscriptions(
 def update_media(
     session: Session,
     hunter: MetricoHunter,
-    media: alchemy.Media,
+    media: models.Media,
     comment_count: int = -2,
-    data: models.Media | None = None,
+    data: schemas.Media | None = None,
 ):
     if data is None:
         if hunter is None:
@@ -117,7 +120,7 @@ def update_media(
 
     if data is None:
         logger.warning("media:%8i - no data -> exit", media.id)
-        media.status = models.ModelStatus.FAIL
+        media.status = schemas.ModelStatus.FAIL
         # session.commit()
         return
 
@@ -131,7 +134,7 @@ def update_media(
     logger.info("media:%8i - update finished", media.id)
 
 
-def update_media_comments(session: Session, media: alchemy.Media, hunter: MetricoHunter, comment_count: int = -1):
+def update_media_comments(session: Session, media: models.Media, hunter: MetricoHunter, comment_count: int = -1):
     media.comments_last_update = func.now()
     # session.commit()
 

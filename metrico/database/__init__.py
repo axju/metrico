@@ -2,12 +2,11 @@ from logging import getLogger
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from metrico import models
-
-from . import alchemy, crud
+from .. import schemas
+from . import crud, models
 from .query import BasicQuery
 
 logger = getLogger(__name__)
@@ -34,14 +33,14 @@ class TriggerMediaCaller:
 
 
 class MetricoDB:
-    def __init__(self, config: models.DatabaseConfig):
+    def __init__(self, config: schemas.DatabaseConfig):
         self.config = config
         self.engine, self.Session = self.reload_config()  # pylint: disable=invalid-name
 
         if trigger := self.config.on_create_account_trigger:
-            event.listen(alchemy.Account, "after_insert", TriggerAccountCaller(trigger))
+            event.listen(models.Account, "after_insert", TriggerAccountCaller(trigger))
         if trigger := self.config.on_create_media_trigger:
-            event.listen(alchemy.Media, "after_insert", TriggerMediaCaller(trigger))
+            event.listen(models.Media, "after_insert", TriggerMediaCaller(trigger))
 
     def _get_alembic_config(self):
         alembic_cfg = Config()
@@ -60,7 +59,7 @@ class MetricoDB:
         return self.engine, self.Session
 
     def setup(self):
-        alchemy.Base.metadata.create_all(self.engine)
+        models.Base.metadata.create_all(self.engine)
 
     def make_migrations(self, message: str | None = None):
         alembic_cfg = self._get_alembic_config()
@@ -76,32 +75,38 @@ class MetricoDB:
 
     def stats(self, model: str | None = None):
         alchemy_map = {
-            "Account": alchemy.Account,
-            "Account-Subscription": alchemy.AccountSubscription,
-            "Account-Info": alchemy.AccountInfo,
-            "Account-Data": alchemy.AccountStats,
-            "Media": alchemy.Media,
-            "Media-Info": alchemy.MediaInfo,
-            "Media-Data": alchemy.MediaStats,
-            "Media-Comment": alchemy.MediaComment,
+            "Account": models.Account,
+            "Account-Subscription": models.AccountSubscription,
+            "Account-Info": models.AccountInfo,
+            "Account-Data": models.AccountStats,
+            "Media": models.Media,
+            "Media-Info": models.MediaInfo,
+            "Media-Data": models.MediaStats,
+            "Media-Comment": models.MediaComment,
         }
         with self.Session() as session:
             if model in alchemy_map:
                 return session.query(alchemy_map[model]).count()
             return {name: session.query(model).count() for name, model in alchemy_map.items()}
 
-    def iter_query(self, query: BasicQuery):
+    def iter_query(self, stmt: BasicQuery):
         with self.Session() as session:
-            yield from query.iter(session)
+            yield from stmt.iter(session)
 
-    def create(self, platform: str, data: models.Account | models.Media, session: Session | None = None):
+    def count_query(self, stmt: BasicQuery):
+        with self.Session() as session:
+            sub_stmt = stmt.query()
+            count_stmt = select(func.count()).select_from(sub_stmt.subquery())
+            return session.scalar(count_stmt)
+
+    def create(self, platform: str, data: schemas.Account | schemas.Media, session: Session | None = None):
         match data:
-            case models.Account():
+            case schemas.Account():
                 return self.create_account(platform, data, session)
-            case models.Media():
+            case schemas.Media():
                 return self.create_media(platform, data, session)
 
-    def create_account(self, platform: str, data: models.Account, session: Session | None = None):
+    def create_account(self, platform: str, data: schemas.Account, session: Session | None = None):
         if session is not None:
             return crud.create_account(session, platform, data)
 
@@ -111,7 +116,7 @@ class MetricoDB:
             local_session.refresh(account)
             return account
 
-    def create_media(self, platform: str, data: models.Media, session: Session | None = None):
+    def create_media(self, platform: str, data: schemas.Media, session: Session | None = None):
         if session is not None:
             account = crud.create_account(session, platform, data.account)
             return crud.create_media(session, account, data)

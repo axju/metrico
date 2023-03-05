@@ -6,7 +6,7 @@ from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
-from metrico.models import MediaType, ModelStatus
+from metrico.schemas import MediaType, ModelStatus
 
 from .account import Account
 from .basic import Base
@@ -56,7 +56,7 @@ class Media(Base):
     )
 
     def __repr__(self) -> str:
-        return f"Media(id={self.id!r}, account={self.account.id!r}, info_title={self.info_title!r})"
+        return f"Media(id={self.id!r}, account={self.account_id!r}, info_title={self.info_title!r})"
 
     # def __str__(self):
     #     return f"{self.stats_likes or '-'} - {self.stats_comments or '-'} - {self.info_title or '-'}"

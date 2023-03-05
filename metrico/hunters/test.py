@@ -7,9 +7,8 @@ from logging import getLogger
 
 from faker import Faker  # pylint: disable=import-error
 
-from metrico import models
-
-from .basic import BasicHunter
+from metrico import schemas
+from metrico.core.hunting.basic import BasicHunter
 
 logger = getLogger(__name__)
 
@@ -18,15 +17,15 @@ class TestHunter(BasicHunter):
     def __init__(self, config: dict):
         super().__init__(config)
         self.fake = Faker()
-        self.accounts: list[models.Account] = []
-        self.medias: list[list[models.Media]] = []
-        self.comments: list[list[models.MediaComment]] = []
+        self.accounts: list[schemas.Account] = []
+        self.medias: list[list[schemas.Media]] = []
+        self.comments: list[list[schemas.MediaComment]] = []
 
-    def analyze(self, value: str, amount: int = 10, full: bool = False) -> Iterator[models.Account | models.Media]:
+    def analyze(self, value: str, amount: int = 10, full: bool = False) -> Iterator[schemas.Account | schemas.Media]:
         for index in range(amount):
             yield self.get_account_data(str(index))
 
-    def get_account_data(self, identifier: str) -> models.Account:
+    def get_account_data(self, identifier: str) -> schemas.Account:
         index = int(identifier)
         if index in range(len(self.accounts)):
             account = self.accounts[index]
@@ -37,14 +36,14 @@ class TestHunter(BasicHunter):
 
             followers = int(medias * random.randint(1, 500) / 100)
             views = int(followers * medias * random.randint(1, 400) / 100)
-            account = models.Account(
+            account = schemas.Account(
                 identifier=identifier,
-                created=models.Created(self.fake.date_of_birth(maximum_age=10)),
-                info=models.AccountInfo(
+                created=schemas.Created(self.fake.date_of_birth(maximum_age=10)),
+                info=schemas.AccountInfo(
                     name=self.fake.name(),
                     bio=self.fake.text(),
                 ),
-                stats=models.AccountStats(medias=medias, views=views, followers=followers, subscriptions=random.randint(0, 50)),
+                stats=schemas.AccountStats(medias=medias, views=views, followers=followers, subscriptions=random.randint(0, 50)),
             )
             self.accounts.append(account)
             self.medias.append([])
@@ -62,14 +61,14 @@ class TestHunter(BasicHunter):
             account.stats.views += int(1 + 5 * add * random.random())
         return account
 
-    def get_media_data(self, identifier: str) -> models.Media | None:
+    def get_media_data(self, identifier: str) -> schemas.Media | None:
         account_index, media_index = map(int, identifier.split(":"))
         if media_index in range(len(self.medias[account_index])):
             media = self.medias[account_index][media_index]
         else:
-            media = models.Media(identifier=identifier, media_type=models.MediaType.VIDEO, account=self.accounts[account_index])
-            media.created = models.Created(self.fake.date_time_between_dates(self.accounts[account_index].created.value, datetime.now()))
-            media.info = models.MediaInfo(
+            media = schemas.Media(identifier=identifier, media_type=schemas.MediaType.VIDEO, account=self.accounts[account_index])
+            media.created = schemas.Created(self.fake.date_time_between_dates(self.accounts[account_index].created.value, datetime.now()))
+            media.info = schemas.MediaInfo(
                 title=self.fake.text(max_nb_chars=random.randint(10, 40))[:-1],
                 caption="\n".join(self.fake.paragraphs(nb=7)),
                 disable_comments=random.random() < 0.01,
@@ -77,7 +76,7 @@ class TestHunter(BasicHunter):
             comments = self.config.get("max_comments", 10)
             if self.config.get("random_comments", False):
                 comments = random.randint(0, self.config.get("max_comments", 100))
-            media.stats = models.MediaStats(
+            media.stats = schemas.MediaStats(
                 comments=comments,
                 likes=random.randint(0, 1000),
                 views=random.randint(0, 1000),
@@ -102,17 +101,17 @@ class TestHunter(BasicHunter):
         for index in range(self.accounts[int(identifier)].stats.medias):
             yield self.get_media_data(f"{identifier}:{index}")
 
-    # def iter_account_subscriptions(self, identifier: str, amount: int = 0) -> Iterator[models.Subscription]:´
+    # def iter_account_subscriptions(self, identifier: str, amount: int = 0) -> Iterator[schemas.Subscription]:´
     #     ...
 
-    def iter_media_comments(self, identifier: str, amount: int = 0) -> Iterator[models.MediaComment]:
-        def get_comment_data(comment_index: int) -> models.MediaComment:
+    def iter_media_comments(self, identifier: str, amount: int = 0) -> Iterator[schemas.MediaComment]:
+        def get_comment_data(comment_index: int) -> schemas.MediaComment:
             if comment_index in range(len(self.comments[media_index])):
                 comment = self.comments[media_index][comment_index]
             else:
-                comment = models.MediaComment(identifier=f"{media_index}:{comment_index}")
+                comment = schemas.MediaComment(identifier=f"{media_index}:{comment_index}")
                 comment.account = self.get_account_data(str(len(self.accounts)))
-                comment.content = models.MediaCommentContent(
+                comment.content = schemas.MediaCommentContent(
                     text=self.fake.text(max_nb_chars=random.randint(10, 40))[:-1],
                     likes=random.randint(0, 1000),
                     created_at=self.fake.date_time_between_dates(self.medias[account_index][media_index].created.value, datetime.now()),

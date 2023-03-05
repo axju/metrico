@@ -1,6 +1,4 @@
 from metrico import MetricoCore
-from metrico.database.query import MediaQuery
-from metrico.models import BasicClassConfig
 
 metrico = MetricoCore.default()
 

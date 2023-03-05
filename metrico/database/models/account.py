@@ -6,7 +6,7 @@ from sqlalchemy import BigInteger, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
-from metrico.models import ModelStatus
+from metrico.schemas import ModelStatus
 
 from .basic import Base
 

@@ -1,7 +1,3 @@
-import subprocess
-from pathlib import Path
-from tempfile import NamedTemporaryFile
-
 from metrico import MetricoCore, __version__
 
 

@@ -6,10 +6,10 @@ from logging import getLogger
 
 from sqlalchemy.sql import func
 
-from metrico.database.alchemy import TriggerAccount, TriggerMedia
-from metrico.utils import update_list
+from metrico.core.utils import update_list
+from metrico.database import crud
+from metrico.database.models import TriggerAccount, TriggerMedia
 
-from ..database import crud
 from .basic import BasicTrigger
 
 if TYPE_CHECKING:

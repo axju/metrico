@@ -1,6 +1,5 @@
-from metrico import MetricoConfig, MetricoCore
-from metrico.database.query import MediaQuery
-from metrico.models import BasicClassConfig
+from metrico.core import MetricoConfig, MetricoCore
+from metrico.core.utils import BasicClassConfig
 
 # create metrico config (database and youtube api key)
 config = MetricoConfig()

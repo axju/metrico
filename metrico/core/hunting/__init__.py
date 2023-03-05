@@ -1,10 +1,8 @@
 from logging import getLogger
 
-from metrico.utils import DynamicClassDict
+from metrico.core.utils import DynamicClassDict
 
-from .hunters.basic import BasicHunter
-from .hunters.test import TestHunter  # type: ignore
-from .hunters.youtube import YoutubeHunter
+from .basic import BasicHunter
 
 logger = getLogger(__name__)
 
@@ -12,8 +10,6 @@ logger = getLogger(__name__)
 class MetricoHunter(DynamicClassDict[BasicHunter]):
     DEFAULT_CLS = {
         "dummy": BasicHunter,
-        "test": TestHunter,
-        "youtube": YoutubeHunter,
     }
     ENTRY_POINT = "metrico.hunters"
 

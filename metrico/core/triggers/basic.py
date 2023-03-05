@@ -6,11 +6,11 @@ from datetime import datetime
 from logging import getLogger
 
 from metrico.database import crud
-from metrico.database.alchemy import TriggerAccount, TriggerMedia
-from metrico.models import BasicClassItem, TriggerStatus
+from metrico.database.models import TriggerAccount, TriggerMedia
+from metrico.schemas import BasicClassItem, TriggerStatus
 
 if TYPE_CHECKING:
-    from metrico import MetricoCore
+    from metrico.core import MetricoCore
 
 
 logger = getLogger(__name__)
