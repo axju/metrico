@@ -38,6 +38,7 @@ class Account(Base):
     medias: Mapped[list["Media"]] = relationship(  # type: ignore
         back_populates="account",
         cascade="all, delete-orphan",
+        order_by="Media.created_at.desc()",
         lazy="dynamic",
     )
 

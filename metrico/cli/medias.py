@@ -1,6 +1,11 @@
+import math
+
+import numpy as np
 from rich.live import Live
 from rich.table import Column, Table
+from scipy.stats import shapiro
 
+from metrico.analyze import get_lost
 from metrico.cli.utils import MetricoBasicFilterArgumentParser, find_index, to_local_time
 from metrico.core import MetricoCore
 from metrico.core.utils import update_list
@@ -18,7 +23,83 @@ def get_headers(args):
     if args.show_lost:
         for name in ["Comments", "Likes", "Views"]:
             headers.append(Column(header=name, justify="right"))
+    if args.show_analyze:
+        for name in ["C/L", "L/V", "C/V", "CLI Vector", "Ratio Vector", "Dot"]:
+            headers.append(Column(header=name, justify="right"))
+    if args.show_fit:
+        for name in ["Comments", "Err", "Likes", "Err", "Views", "Err"]:
+            headers.append(Column(header=name, justify="right"))
     return headers
+
+
+def get_values_fit(media):
+    if media.stats_comments < 10 or media.stats_likes < 10 or media.stats_views < 10 or media.stats.count() < 5:
+        return ["-", "-", "-", "-", "-", "-"]
+
+    timestamp, views, likes, comments = [], [], [], []
+    for stat in media.stats:
+        tmp = (stat.timestamp - media.created_at).total_seconds() / 60 / 60
+        if tmp <= 0:
+            continue
+        timestamp.append(tmp)
+        views.append(stat.views)
+        likes.append(stat.likes)
+        comments.append(stat.comments)
+
+    timestamp = np.array(timestamp)
+    views = np.array(views)
+    likes = np.array(likes)
+    comments = np.array(comments)
+
+    try:
+        fit_c = np.polyfit(np.log(timestamp), comments, 1)
+        err_c = comments - (fit_c[0] * np.log(timestamp) + fit_c[1])
+
+        fit_l = np.polyfit(np.log(timestamp), likes, 1)
+        err_l = likes - (fit_l[0] * np.log(timestamp) + fit_l[1])
+
+        fit_v = np.polyfit(np.log(timestamp), views, 1)
+        err_v = views - (fit_v[0] * np.log(timestamp) + fit_v[1])
+
+        # fit_c = np.polyfit(timestamp, comments, 1)
+        # err_c = comments - fit_c[0] * timestamp + fit_c[1]
+        #
+        # fit_l = np.polyfit(timestamp, likes, 1)
+        # err_l = likes - fit_l[0] * timestamp + fit_l[1]
+        #
+        # fit_v = np.polyfit(timestamp, views, 1)
+        # err_v = views - fit_v[0] * timestamp + fit_v[1]
+    except:
+        return ["-", "-", "-", "-", "-", "-"]
+
+    return [
+        f"{fit_c[0]:>6.3f}",
+        f"{shapiro(err_c).pvalue:>6.3f}",
+        f"{fit_l[0]:>6.3f}",
+        f"{shapiro(err_l).pvalue:>6.3f}",
+        f"{fit_v[0]:>6.3f}",
+        f"{shapiro(err_v).pvalue:>6.3f}",
+    ]
+
+
+def get_values_lost(media, args):
+    if args.simple:
+        views, likes, comments = [], [], []
+        for stat in media.stats:
+            tmp = (stat.timestamp - media.created_at).total_seconds() / 60 / 60
+            if tmp <= 0:
+                continue
+            views.append(stat.views)
+            likes.append(stat.likes)
+            comments.append(stat.comments)
+
+        return [
+            f"{max(comments) - media.stats_comments}",
+            f"{max(likes) - media.stats_likes}",
+            f"{max(views) - media.stats_views}",
+        ]
+
+    return map(str, get_lost(media))
 
 
 def get_values(media, args):
@@ -51,22 +132,25 @@ def get_values(media, args):
             f"{media.stats[0].views - media.stats[index_dt].views}",
         ]
     if args.show_lost:
-        rise = [0, 0, 0]
-        for index in range(2, media.stats.count()):
-            value = [
-                media.stats[index - 1].comments - media.stats[index].comments,
-                media.stats[index - 1].likes - media.stats[index].likes,
-                media.stats[index - 1].views - media.stats[index].views,
+        values += get_values_lost(media, args)
+    if args.show_analyze:
+        if media.stats_comments == 0 or media.stats_likes == 0 or media.stats_views == 0:
+            values += ["-", "-", "-", "-", "-", "-"]
+        else:
+            norm = math.sqrt((media.stats_comments**2) + (media.stats_likes**2) + (media.stats_views**2))
+            ratios = [media.stats_comments / media.stats_likes, media.stats_likes / media.stats_views, media.stats_comments / media.stats_views]
+            ratios_norm = math.sqrt(sum([value**2 for value in ratios]))
+            dot = ((media.stats_comments * ratios[0]) + (media.stats_likes * ratios[1]) + (media.stats_views * ratios[2])) / (norm * ratios_norm)
+            values += [
+                f"{1000 * ratios[0]:>6.3f}",
+                f"{1000 * ratios[1]:>6.3f}",
+                f"{1000 * ratios[2]:>6.3f}",
+                f"{media.stats_comments/norm:>6.3f}, {media.stats_likes/norm:>6.3f}, {media.stats_views/norm:>6.3f}",
+                f"{ratios[0] / ratios_norm:>6.3f}, {ratios[1] / ratios_norm:>6.3f}, {ratios[2] / ratios_norm:>6.3f}",
+                f"{100 * dot:6.4f}",
             ]
-            for i in range(3):
-                if value[i] < 0:
-                    rise[i] += -value[i]
-
-        values += [
-            f"{rise[0]}",
-            f"{rise[1]}",
-            f"{rise[2]}",
-        ]
+    if args.show_fit:
+        values += get_values_fit(media)
     return values
 
 
@@ -87,8 +171,11 @@ def parse_args():
     sub_list = subparsers.add_parser("list")
     sub_list.add_argument("--show_rel", action="store_true", help="Show length of relationship models")
     sub_list.add_argument("--show_dt", action="store_true", help="Show stats changing")
-    sub_list.add_argument("--show_lost", action="store_true", help="Show total rising/falling stats values")
     sub_list.add_argument("--dt", type=int, default=0, help="Set dt [h] for the changing stats")
+    sub_list.add_argument("--show_lost", action="store_true", help="Show total rising/falling stats values")
+    sub_list.add_argument("--simple", action="store_true", help="Make it simple")
+    sub_list.add_argument("--show_analyze", action="store_true", help="Show some analyze values")
+    sub_list.add_argument("--show_fit", action="store_true", help="Show the log fit values")
 
     sub_update = subparsers.add_parser("update")
     sub_update.add_argument("--threads", type=int, default=8)

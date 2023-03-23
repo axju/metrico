@@ -2,6 +2,7 @@
 from rich.live import Live
 from rich.table import Column, Table
 
+from metrico.analyze import get_lost
 from metrico.cli.utils import MetricoBasicFilterArgumentParser, find_index
 from metrico.core import MetricoCore
 from metrico.core.utils import update_list
@@ -24,6 +25,9 @@ def list_accounts(metrico: MetricoCore, args):
             headers.append(Column(header=name, justify="right"))
     if args.show_dt:
         for name in ["First", "Last", "DT [h]", "Medias", "Views", "Followers", "Subscriptions"]:
+            headers.append(Column(header=name, justify="right"))
+    if args.show_lost:
+        for name in ["Comments", "Likes", "Views"]:
             headers.append(Column(header=name, justify="right"))
     table = Table(
         *headers,
@@ -67,6 +71,14 @@ def list_accounts(metrico: MetricoCore, args):
                     f"{(account.stats[0].followers or 0) - (account.stats[index_dt].followers or 0)}",
                     f"{(account.stats[0].subscriptions or 0) - (account.stats[index_dt].subscriptions or 0)}",
                 ]
+            if args.show_lost:
+                lost_total = [0, 0, 0]
+                for media in account.medias.limit(args.lost_limit):
+                    lost = get_lost(media)
+                    for i in range(3):
+                        lost_total[i] += lost[i]
+                values += [f"{lost_total[0]}", f"{lost_total[1]}", f"{lost_total[2]}"]
+
             table.add_row(*values)
 
 
@@ -83,6 +95,8 @@ def parse_args():
     sub_list.add_argument("--show_rel", action="store_true", help="Show length of relationship models")
     sub_list.add_argument("--show_dt", action="store_true", help="Show stats changing")
     sub_list.add_argument("--dt", type=int, default=0, help="Set dt [h] for the changing stats")
+    sub_list.add_argument("--show_lost", action="store_true", help="Show lost values of account medias")
+    sub_list.add_argument("--lost_limit", type=int, default=50, help="Limit for the medias")
 
     sub_update = subparsers.add_parser("update")
     sub_update.add_argument("--threads", type=int, default=8)
