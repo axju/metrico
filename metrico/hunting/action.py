@@ -11,7 +11,7 @@ from metrico import schemas
 from metrico.database import crud, models
 
 if TYPE_CHECKING:
-    from metrico.core import MetricoHunter
+    from metrico.core import MetricoHunters
 
 
 logger = getLogger(__name__)
@@ -20,7 +20,7 @@ logger = getLogger(__name__)
 def update_account(
     session: Session,
     account: models.Account,
-    hunter: MetricoHunter | None = None,
+    hunter: MetricoHunters | None = None,
     media_count: int = 0,
     comment_count: int = -2,
     subscription_count: int = -1,
@@ -65,7 +65,7 @@ def update_account(
 
 def update_account_medias(
     session: Session,
-    hunter: MetricoHunter,
+    hunter: MetricoHunters,
     account: models.Account,
     media_count: int = 0,
     comment_count: int = -1,
@@ -89,7 +89,7 @@ def update_account_medias(
 
 def update_account_subscriptions(
     session: Session,
-    hunter: MetricoHunter,
+    hunter: MetricoHunters,
     account: models.Account,
     subscription_count: int = 0,
 ):
@@ -108,7 +108,7 @@ def update_account_subscriptions(
 
 def update_media(
     session: Session,
-    hunter: MetricoHunter,
+    hunter: MetricoHunters,
     media: models.Media,
     comment_count: int = -2,
     data: schemas.Media | None = None,
@@ -134,7 +134,7 @@ def update_media(
     logger.info("media:%8i - update finished", media.id)
 
 
-def update_media_comments(session: Session, media: models.Media, hunter: MetricoHunter, comment_count: int = -1):
+def update_media_comments(session: Session, media: models.Media, hunter: MetricoHunters, comment_count: int = -1):
     media.comments_last_update = func.now()
     # session.commit()
 

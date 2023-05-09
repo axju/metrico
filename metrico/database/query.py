@@ -256,6 +256,7 @@ class MediaCommentQuery(BasicQuery):
     model: type[MediaComment] = MediaComment
     order_by: MediaCommentOrder = MediaCommentOrder.CREATED
     order_asc: bool = False
+    media_account_id: int | list[int] | None = None
 
     def load_namespace(self, args: Namespace):
         super().load_namespace(args)
@@ -266,6 +267,7 @@ class MediaCommentQuery(BasicQuery):
         stmt = super().query(stmt)
         stmt = self.query_order(stmt)
         stmt = self.query_filter_account(stmt)
+        stmt = self.query_filter_media_account(stmt)
         return stmt
 
     def query_order(self, stmt: Select[Any]) -> Select[Any]:
@@ -297,6 +299,13 @@ class MediaCommentQuery(BasicQuery):
                 return stmt.join(Account, MediaComment.account_id == Account.id).where(Account.info_name.in_(self.accounts))
             if all(isinstance(item, int) for item in self.accounts):
                 return stmt.where(MediaComment.account_id.in_(self.accounts))
+        return stmt
+
+    def query_filter_media_account(self, stmt: Select[Any]) -> Select[Any]:
+        if isinstance(self.media_account_id, list) and len(self.media_account_id) == 1:
+            self.media_account_id = self.media_account_id[0]
+        if isinstance(self.media_account_id, int):
+            return stmt.join(Media, Media.id == MediaComment.media_id).where(Media.account_id == self.media_account_id)
         return stmt
 
 

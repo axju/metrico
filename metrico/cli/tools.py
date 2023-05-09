@@ -12,22 +12,23 @@ from rich import print as rich_print
 from rich.live import Live
 from rich.table import Table
 
-from metrico import MetricoCore, schemas
+from metrico import Hunter, MetricoDB, schemas
 from metrico.cli.utils import MetricoArgumentParser, console
 from metrico.database import models
+from metrico.utils.config import MetricoConfig
 
 
 def get_random_string(length: int = 32) -> str:
     return "".join(random.choice(string.ascii_lowercase) for _ in range(length))
 
 
-def config(metrico: MetricoCore, args) -> int:
+def show_config(obj: MetricoConfig, args) -> int:
     match args.key:
         case None:
-            rich_print(metrico.config)
+            rich_print(obj)
 
         case str() as key:
-            rich_print(f"{key} - {getattr(metrico.config, key)}")
+            rich_print(f"{key} - {getattr(obj, key)}")
 
         case _:
             print("WTF?")
@@ -35,20 +36,20 @@ def config(metrico: MetricoCore, args) -> int:
     return 0
 
 
-def benchmark(metrico: MetricoCore, args) -> int:
+def benchmark(hunter: Hunter, args) -> int:
     platform = "test"
 
-    metrico.config.db.url = "sqlite://"
+    hunter.config.db.url = "sqlite://"
     if args.sqlite:
         Path("testing.db").unlink(missing_ok=True)
-        metrico.config.db.url = "sqlite:///testing.db"
-    metrico.db.reload_config()
+        hunter.config.db.url = "sqlite:///testing.db"
+    hunter.db.reload_config()
 
-    metrico.db.setup()
-    metrico.hunter[platform].config["max_medias"] = args.medias
-    metrico.hunter[platform].config["max_comments"] = args.comments
-    metrico.hunter[platform].config["change_account_stats"] = 1
-    metrico.hunter[platform].config["change_media_stats"] = 1
+    hunter.db.setup()
+    hunter.hunters[platform].config["max_medias"] = args.medias
+    hunter.hunters[platform].config["max_comments"] = args.comments
+    hunter.hunters[platform].config["change_account_stats"] = 1
+    hunter.hunters[platform].config["change_media_stats"] = 1
 
     # metrico.hunter[platform].config["random_medias"] = False
     # metrico.hunter[platform].config["random_comments"] = False
@@ -66,23 +67,23 @@ def benchmark(metrico: MetricoCore, args) -> int:
     # metrico.hunter[platform].config["change_media_comments"] = 0
 
     console.log("Loops:", args.loops, "Accounts:", args.accounts, "Medias:", args.medias, "Comments:", args.comments)
-    console.log("Database:", metrico.config.db.url)
+    console.log("Database:", hunter.config.db.url)
 
     start = time.time()
     account_ids = []
-    for data in metrico.hunter[platform].analyze("foo", amount=args.accounts):
+    for data in hunter.hunters[platform].analyze("foo", amount=args.accounts):
         if isinstance(data, schemas.Account):
-            account = metrico.db.create_account(platform, data)
+            account = hunter.db.create_account(platform, data)
             account_ids.append(account.id)
 
     for loop in range(args.loops):
         console.log(f"Running loop {loop}")
         for account_id in account_ids:
-            metrico.update_account(account_id, media_count=args.media_count, comment_count=args.comment_count, subscription_count=args.subscription_count)
+            hunter.update_account(account_id, media_count=args.media_count, comment_count=args.comment_count, subscription_count=args.subscription_count)
 
     end = time.time()
 
-    stats = metrico.db.stats()
+    stats = hunter.db.stats()
     results: dict[str, int] = {
         "Account": args.medias * args.comments + args.accounts,
         "Account-Info": args.medias * args.comments + args.accounts,
@@ -105,7 +106,7 @@ def benchmark(metrico: MetricoCore, args) -> int:
     return 0
 
 
-def stats_all(metrico: MetricoCore, args):
+def stats_all(config: MetricoConfig, args):
     def update_data(data):
         table = Table("Timestamp", *alchemy_map.keys())
         for row in data:
@@ -123,12 +124,13 @@ def stats_all(metrico: MetricoCore, args):
         "Media-Comment": models.MediaComment,
     }
 
+    db: MetricoDB = MetricoDB(config=config.db)
     rows: list[list[str]] = []
     values_last: list[Any] = []
     with Live() as live:
         while True:
             try:
-                with metrico.db.Session() as session:
+                with db.Session() as session:
                     values = [datetime.now()] + [session.query(model).count() for name, model in alchemy_map.items()]
                     if values_last:
                         values_dt = [values[i] - values_last[i] for i in range(len(values))]
@@ -194,10 +196,11 @@ def select_index(max_index: int):
             console.print("Please enter a number!")
 
 
-def add_item(metrico: MetricoCore, args):
-    datas = []
-    for platform, hunter in metrico.hunter.items():
-        if items := hunter.analyze(args.value, full=args.full):
+def add_item(config: MetricoConfig, args):
+    hunter: Hunter = Hunter(config=config)
+    datas: list = []
+    for platform, item in hunter.hunters.items():
+        if items := item.analyze(args.value, full=args.full):
             datas += [{"platform": platform, "item": item} for item in items]
 
     if not datas:
@@ -207,7 +210,7 @@ def add_item(metrico: MetricoCore, args):
     show_data(datas)
     index = select_index(len(datas))
 
-    item = metrico.db.create(datas[index]["platform"], datas[index]["item"])
+    item = hunter.db.create(datas[index]["platform"], datas[index]["item"])
     console.print("create", item)
 
 
@@ -240,20 +243,21 @@ def main() -> int:
     sub_add.add_argument("--full", action="store_true")
     sub_add.add_argument("value")
 
-    metrico, args = parser.parse_args()
+    config, args = parser.parse_args()
     match args.action:
         case "config":
-            return config(metrico, args)
+            return show_config(config, args)
         case "benchmark":
             return benchmark(metrico, args)
         case "makemigrations":
-            metrico.db.make_migrations(message=args.comment)
+            db = MetricoDB(config=config)
+            db.make_migrations(message=args.comment)
         case "migrate":
-            metrico.db.migrate()
+            MetricoDB(config=config.db).migrate()
         case "stats":
-            stats_all(metrico, args)
+            stats_all(config, args)
         case "add":
-            add_item(metrico, args)
+            add_item(config, args)
         case _:
             parser.print_help()
             return 1

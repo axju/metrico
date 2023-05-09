@@ -1,6 +1,6 @@
-from metrico import MetricoCore
+from metrico import Hunter
 
-metrico = MetricoCore()
+metrico = Hunter()
 metrico.config.db.url = f"sqlite://"
 metrico.db.reload_config()
 metrico.db.setup()

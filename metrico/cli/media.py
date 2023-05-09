@@ -1,9 +1,10 @@
 # type: ignore
+# ruff: noqa: E501
 from rich.live import Live
 from rich.table import Table
 
 from metrico.cli.utils import MetricoArgumentParser, to_local_time
-from metrico.database import models
+from metrico.database import MetricoDB, models
 
 
 def media_info(media: models.Media):
@@ -37,14 +38,15 @@ def parse_args():
         const="info",
     )
 
-    metrico, args = parser.parse_args()
-    return parser, metrico, args
+    config, args = parser.parse_args()
+    return parser, config, args
 
 
 def main() -> int:
-    _, metrico, args = parse_args()
-    with metrico.db.Session() as session:
-        media = metrico.db.get_media(args.media, session=session)
+    _, config, args = parse_args()
+    db = MetricoDB(config.db)
+    with db.Session() as session:
+        media = db.get_media(args.media, session=session)
         if media is None:
             return 1
         match args.mode:

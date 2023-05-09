@@ -1,13 +1,16 @@
 from logging import getLogger
+from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from metrico.utils.config import ConfigMixin, MetricoConfig
+
 from .. import schemas
 from . import crud, models
-from .query import BasicQuery
+from .query import BasicQuery, MediaCommentOrder, MediaCommentQuery, MediaOrder, MediaQuery
 
 logger = getLogger(__name__)
 
@@ -32,19 +35,20 @@ class TriggerMediaCaller:
             session.commit()
 
 
-class MetricoDB:
-    def __init__(self, config: schemas.DatabaseConfig):
-        self.config = config
+class MetricoDB(ConfigMixin):
+    def __init__(self, filename: str | Path | None = None, config: MetricoConfig | dict | None = None):
+        super().__init__(filename=filename, config=config)
+        # self.config = config
         self.engine, self.Session = self.reload_config()  # pylint: disable=invalid-name
 
-        if trigger := self.config.on_create_account_trigger:
+        if trigger := self.config.db.on_create_account_trigger:
             event.listen(models.Account, "after_insert", TriggerAccountCaller(trigger))
-        if trigger := self.config.on_create_media_trigger:
+        if trigger := self.config.db.on_create_media_trigger:
             event.listen(models.Media, "after_insert", TriggerMediaCaller(trigger))
 
     def _get_alembic_config(self):
         alembic_cfg = Config()
-        alembic_cfg.set_main_option("script_location", "metrico.data:migrations")
+        alembic_cfg.set_main_option("script_location", "metrico.database:migrations")
         alembic_cfg.set_main_option("sqlalchemy.url", self.config.url)
         return alembic_cfg
 
@@ -54,7 +58,7 @@ class MetricoDB:
         return session
 
     def reload_config(self):
-        self.engine = create_engine(self.config.url, echo=self.config.enable_echo)
+        self.engine = create_engine(self.config.db.url, echo=self.config.db.enable_echo)
         self.Session = sessionmaker(autoflush=True, bind=self.engine)  # pylint: disable=invalid-name
         return self.engine, self.Session
 

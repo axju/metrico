@@ -2,15 +2,15 @@
 from rich.live import Live
 from rich.table import Table
 
-from metrico import MetricoCore
+from metrico import MetricoDB
 from metrico.cli.utils import MetricoBasicFilterArgumentParser, to_local_time
 from metrico.database.query import MediaCommentOrder, MediaCommentQuery
 
 
-def list_media_comment(metrico: MetricoCore, args):
+def list_media_comment(db: MetricoDB, args):
     table = Table("ID", "Account", "Media", "Media-Account", "Created", "Likes", "Text")
     with Live(table, refresh_per_second=4):
-        for comment in metrico.db.iter_query(MediaCommentQuery.from_namespace(args)):
+        for comment in db.iter_query(MediaCommentQuery.from_namespace(args)):
             table.add_row(
                 f"{comment.id:>7}",
                 f"[{comment.account_id}] {comment.account.info_name[:32]}",
@@ -25,13 +25,14 @@ def list_media_comment(metrico: MetricoCore, args):
 def parse_args():
     parser = MetricoBasicFilterArgumentParser("comments")
     parser.add_argument("--order_by", type=lambda x: MediaCommentOrder[x], choices=list(MediaCommentOrder))
-    metrico, args = parser.parse_args()
-    return parser, metrico, args
+    config, args = parser.parse_args()
+    return parser, config, args
 
 
 def main() -> int:
-    _, metrico, args = parse_args()
-    list_media_comment(metrico, args)
+    _, config, args = parse_args()
+    db = MetricoDB(config=config)
+    list_media_comment(db, args)
     return 0
 
 

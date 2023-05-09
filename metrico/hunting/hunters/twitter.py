@@ -4,7 +4,7 @@ from datetime import datetime
 from pytwitter import Api
 from pytwitter.models.tweet import Tweet as TweetModel
 
-from metrico.core.hunting.basic import BasicHunter
+from metrico.hunting.hunters.basic import BasicHunter
 from metrico.schemas import MediaType
 
 

@@ -6,8 +6,8 @@ from urllib import parse as url_parse
 from pyyoutube import Api
 
 from metrico import schemas
-from metrico.core.hunting.basic import BasicHunter
-from metrico.core.hunting.utils import MultiObjCaller
+from metrico.hunting.hunters.basic import BasicHunter
+from metrico.utils.wrappers import MultiObjCaller
 
 
 class YoutubeHunter(BasicHunter):

@@ -3,12 +3,12 @@ from rich.live import Live
 from rich.table import Table
 from sqlalchemy import func, select
 
+from metrico import Hunter, MetricoConfig, MetricoDB
 from metrico.cli.utils import MetricoArgumentParser, to_local_time
-from metrico.core import MetricoCore
 from metrico.database import models
 
 
-def account_info(metrico: MetricoCore, account: models.Account):
+def account_info(db: MetricoDB, account: models.Account):
     account_fields = {
         "Name": account.info_name,
         "Bio": account.info_bio.split("\n")[0][:200] if account.info_bio else "-",
@@ -47,33 +47,33 @@ def account_info(metrico: MetricoCore, account: models.Account):
 
     print("\nAccount Relations:")
     name_len = max(map(len, account_relations.keys())) + 1
-    with metrico.db.Session() as session:
+    with db.Session() as session:
         for name, model in account_relations.items():
             value = session.scalar(select(func.count(model.id)).where(model.account_id == account.id))
             print(f"{name:>{name_len}}: {value}")
 
     print("\nAccount Stats:")
     name_len = max(map(len, account_stats_map.keys())) + 1
-    with metrico.db.Session() as session:
+    with db.Session() as session:
         for name, stmt in account_stats_map.items():
             value = session.scalar(stmt)
             print(f"{name:>{name_len}}: {value}")
 
 
-def account_infos(metrico: MetricoCore, account: models.Account, args):
+def account_infos(db: MetricoDB, account: models.Account, args):
     stmt = select(models.AccountInfo).where(models.AccountInfo.account_id == account.id).order_by(models.AccountInfo.timestamp.desc()).limit(args.limit or 10)
     table = Table("ID", "Timestamp", "Name", "Bio")
-    with metrico.db.Session() as session, Live(table, refresh_per_second=4):
+    with db.Session() as session, Live(table, refresh_per_second=4):
         for value in session.execute(stmt).scalars():
             table.add_row(f"{value.id}", f"{to_local_time(value.timestamp):%Y-%m-%d %H:%M}", f"{value.name}", f"{value.bio}")
 
 
-def account_stats(metrico: MetricoCore, account: models.Account, args):
+def account_stats(db: MetricoDB, account: models.Account, args):
     stmt = (
         select(models.AccountStats).where(models.AccountStats.account_id == account.id).order_by(models.AccountStats.timestamp.desc()).limit(args.limit or 10)
     )
     table = Table("ID", "Timestamp", "Medias", "Views", "Followers", "Subscriptions")
-    with metrico.db.Session() as session, Live(table, refresh_per_second=4):
+    with db.Session() as session, Live(table, refresh_per_second=4):
         for stat in session.execute(stmt).scalars():
             table.add_row(
                 f"{stat.id}",
@@ -85,10 +85,10 @@ def account_stats(metrico: MetricoCore, account: models.Account, args):
             )
 
 
-def account_subscriptions(metrico: MetricoCore, account: models.Account, args):
+def account_subscriptions(db: MetricoDB, account: models.Account, args):
     stmt = select(models.AccountSubscription).where(models.AccountSubscription.account_id == account.id).limit(args.limit or 10)
     table = Table("ID", "Account")
-    with metrico.db.Session() as session, Live(table, refresh_per_second=4):
+    with db.Session() as session, Live(table, refresh_per_second=4):
         for subscription in session.execute(stmt).scalars():
             table.add_row(
                 f"{subscription.id:>5}",
@@ -96,10 +96,10 @@ def account_subscriptions(metrico: MetricoCore, account: models.Account, args):
             )
 
 
-def account_followers(metrico: MetricoCore, account: models.Account, args):
+def account_followers(db: MetricoDB, account: models.Account, args):
     stmt = select(models.AccountSubscription).where(models.AccountSubscription.subscribed_account_id == account.id).limit(args.limit or 10)
     table = Table("ID", "Account")
-    with metrico.db.Session() as session, Live(table, refresh_per_second=4):
+    with db.Session() as session, Live(table, refresh_per_second=4):
         for follower in session.execute(stmt).scalars():
             table.add_row(
                 f"{follower.id:>5}",
@@ -107,7 +107,7 @@ def account_followers(metrico: MetricoCore, account: models.Account, args):
             )
 
 
-def account_comments(metrico: MetricoCore, account: models.Account, args):
+def account_comments(db: MetricoDB, account: models.Account, args):
     stmt = (
         select(models.Account, func.count(models.MediaComment.id))
         .join(models.MediaComment, models.Account.id == models.MediaComment.account_id)
@@ -118,12 +118,12 @@ def account_comments(metrico: MetricoCore, account: models.Account, args):
         .limit(args.limit or 10)
     )
     table = Table("Count", "Account")
-    with metrico.db.Session() as session, Live(table, refresh_per_second=4):
+    with db.Session() as session, Live(table, refresh_per_second=4):
         for value, comments in session.execute(stmt).all():
             table.add_row(f"{comments:>5}", f"[{value.id}] {value.info_name}")
 
 
-def account_commented(metrico: MetricoCore, account: models.Account, args):
+def account_commented(db: MetricoDB, account: models.Account, args):
     stmt = (
         select(models.Media, func.count(models.MediaComment.id))
         .join(models.MediaComment, models.MediaComment.media_id == models.Media.id)
@@ -133,7 +133,7 @@ def account_commented(metrico: MetricoCore, account: models.Account, args):
         .limit(args.limit or 10)
     )
     table = Table("Count", "Account", "Media", "Media-Created")
-    with metrico.db.Session() as session, Live(table, refresh_per_second=4):
+    with db.Session() as session, Live(table, refresh_per_second=4):
         for value, comments in session.execute(stmt).all():
             table.add_row(
                 f"{comments:>5}",
@@ -163,30 +163,31 @@ def parse_args():
         const="info",
     )
 
-    metrico, args = parser.parse_args()
-    return parser, metrico, args
+    config, args = parser.parse_args()
+    return parser, config, args
 
 
 def main() -> int:
-    _, metrico, args = parse_args()
-    account = metrico.db.get_account(args.account)
+    _, config, args = parse_args()
+    db = MetricoDB(config=config)
+    account = db.get_account(args.account)
     if account is None:
         return 1
     match args.mode:
         case "infos":
-            account_infos(metrico, account, args)
+            account_infos(db, account, args)
         case "stats":
-            account_stats(metrico, account, args)
+            account_stats(db, account, args)
         case "subscriptions":
-            account_subscriptions(metrico, account, args)
+            account_subscriptions(db, account, args)
         case "followers":
-            account_followers(metrico, account, args)
+            account_followers(db, account, args)
         case "comments":
-            account_comments(metrico, account, args)
+            account_comments(db, account, args)
         case "commented":
-            account_commented(metrico, account, args)
+            account_commented(db, account, args)
         case "info" | _:
-            account_info(metrico, account)
+            account_info(db, account)
     return 0
 
 

@@ -1,6 +1,10 @@
 from metrico.database import models
 
 
+class Analyzer:
+    ...
+
+
 def get_lost(media: models.Media):
     last_stats, lost = None, [0, 0, 0]
     for stat in media.stats:

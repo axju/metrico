@@ -6,8 +6,6 @@ from logging import Logger, getLogger
 
 from metrico.schemas import BasicClassConfig, BasicClassItem
 
-from .misc import update_list
-
 T = TypeVar("T", bound=BasicClassItem)
 
 

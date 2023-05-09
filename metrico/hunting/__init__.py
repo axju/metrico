@@ -1,38 +1,36 @@
+from __future__ import annotations
+
 from logging import getLogger
 from pathlib import Path
 
 from metrico.const import DEFAULT_FILENAME
-from metrico.core.hunting import MetricoHunter
-from metrico.core.hunting.action import update_account, update_media
-from metrico.core.triggers import MetricoTrigger
-from metrico.core.utils.config import MetricoConfig
 from metrico.database import MetricoDB
 from metrico.database.query import AccountQuery, BasicQuery, MediaQuery
+from metrico.hunting.action import update_account, update_media
+from metrico.hunting.hunters.basic import BasicHunter
+from metrico.hunting.triggers import MetricoTrigger
+from metrico.utils.config import ConfigMixin, MetricoConfig
+from metrico.utils.generic import DynamicClassDict
 
 logger = getLogger(__name__)
 
 
-class MetricoCore:
-    def __init__(self, filename: str | Path | None = None, config: MetricoConfig | None = None):
-        self.config: MetricoConfig = config if isinstance(config, MetricoConfig) else MetricoConfig.load(filename)
-        self.db: MetricoDB = MetricoDB(self.config.db)  # pylint: disable=invalid-name
-        self.hunter: MetricoHunter = MetricoHunter(self.config.hunters)
-        self.trigger: MetricoTrigger = MetricoTrigger(self.config.triggers)
+class MetricoHunters(DynamicClassDict[BasicHunter]):
+    DEFAULT_CLS = {
+        "dummy": BasicHunter,
+    }
+    ENTRY_POINT = "metrico.hunters"
 
-    @classmethod
-    def default(cls):
-        """load default config file"""
-        return cls(filename=DEFAULT_FILENAME)
+    def list_platforms(self):
+        return self.cls.keys()
 
-    @classmethod
-    def load(cls, filename: str | Path):
-        """load config from file"""
-        return cls(filename=filename)
 
-    def setup(self) -> int:
-        logger.info("setup metrico object")
-        self.db.setup()
-        return 0
+class Hunter(ConfigMixin):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.db: MetricoDB = MetricoDB(config=self.config)  # pylint: disable=invalid-name
+        self.hunters: MetricoHunters = MetricoHunters(self.config.hunting.hunters)
+        self.trigger: MetricoTrigger = MetricoTrigger(self.config.hunting.triggers)
 
     def run_trigger(self, name: str, **kwargs):
         self.trigger[name].run(self, **kwargs)
@@ -53,12 +51,12 @@ class MetricoCore:
         with self.db.Session() as session:
             account = self.db.get_account(account_id, session=session)
             update_account(
-                session, hunter=self.hunter, account=account, media_count=media_count, comment_count=comment_count, subscription_count=subscription_count
+                session, hunter=self.hunters, account=account, media_count=media_count, comment_count=comment_count, subscription_count=subscription_count
             )
             session.commit()
 
     def update_media(self, media_id: int, comment_count: int = -1):
         with self.db.Session() as session:
             media = self.db.get_media(media_id, session=session)
-            update_media(session, self.hunter, media, comment_count)
+            update_media(session, self.hunters, media, comment_count)
             session.commit()

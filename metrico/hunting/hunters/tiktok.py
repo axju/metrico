@@ -1,7 +1,7 @@
 from pytiktok import KitApi
 
-from metrico.core.hunting.basic import BasicHunter
-from metrico.core.hunting.utils import MultiObjCaller
+from metrico.hunting import MultiObjCaller
+from metrico.hunting.hunters.basic import BasicHunter
 
 
 class TikTokHunter(BasicHunter):

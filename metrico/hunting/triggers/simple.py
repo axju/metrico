@@ -6,9 +6,9 @@ from logging import getLogger
 
 from sqlalchemy.sql import func
 
-from metrico.core.utils import update_list
 from metrico.database import crud
 from metrico.database.models import TriggerAccount, TriggerMedia
+from metrico.utils.misc import update_list
 
 from .basic import BasicTrigger
 

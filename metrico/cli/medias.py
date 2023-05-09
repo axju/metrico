@@ -1,3 +1,4 @@
+# ruff: noqa: F821
 import math
 
 import numpy as np
@@ -5,11 +6,11 @@ from rich.live import Live
 from rich.table import Column, Table
 from scipy.stats import shapiro
 
+from metrico import Analyzer, Hunter, MetricoConfig, MetricoDB
 from metrico.analyze import get_lost
 from metrico.cli.utils import MetricoBasicFilterArgumentParser, find_index, to_local_time
-from metrico.core import MetricoCore
-from metrico.core.utils import update_list
 from metrico.database.query import MediaOrder, MediaQuery
+from metrico.utils.misc import update_list
 
 
 def get_headers(args):
@@ -154,11 +155,12 @@ def get_values(media, args):
     return values
 
 
-def list_medias(metrico: MetricoCore, args):
+def list_medias(config: MetricoConfig, args):
     headers = get_headers(args)
     table = Table(*headers)
+    db = MetricoDB(config=config)
     with Live(table, refresh_per_second=4):
-        for media in metrico.db.iter_query(MediaQuery.from_namespace(args)):
+        for media in db.iter_query(MediaQuery.from_namespace(args)):
             values = get_values(media, args)
             table.add_row(*values)
 
@@ -178,32 +180,37 @@ def parse_args():
     sub_list.add_argument("--show_fit", action="store_true", help="Show the log fit values")
 
     sub_update = subparsers.add_parser("update")
-    sub_update.add_argument("--threads", type=int, default=8)
-    sub_update.add_argument("--comment_count", type=int, default=-1)
+    sub_update.add_argument("--threads", type=int, default=8, help="Parallel hunting, default=8")
+    sub_update.add_argument("--comment_count", type=int, default=-1, help="-2 = only new, -1 = skipp; 0 = alle, n = last n comments, default=-1")
 
     subparsers.add_parser("count")
 
-    metrico, args = parser.parse_args()
-    return parser, metrico, args
+    config, args = parser.parse_args()
+    return parser, config, args
 
 
 def main() -> int:
-    parser, metrico, args = parse_args()
+    parser, config, args = parse_args()
     match args.action:
         case "list":
-            list_medias(metrico, args)
+            list_medias(config, args)
 
         case "count":
             sub_stmt = MediaQuery.from_namespace(args)
-            print(metrico.db.count_query(sub_stmt))
+            db = MetricoDB(config=config)
+            print(db.count_query(sub_stmt))
 
         case "update":
-            update_list(
-                [obj.id for obj in metrico.db.iter_query(MediaQuery.from_namespace(args))],
-                metrico.update_account,
-                args.threads,
+            Hunter(config=config).update_query(
+                query=MediaQuery.from_namespace(args),
                 comment_count=args.comment_count,
             )
+            # update_list(
+            #     [obj.id for obj in metrico.db.iter_query(MediaQuery.from_namespace(args))],
+            #     metrico.update_account,
+            #     args.threads,
+            #     comment_count=args.comment_count,
+            # )
 
         case _:
             parser.print_help()

@@ -102,14 +102,6 @@ class Subscription:
 
 
 @dataclass
-class DatabaseConfig:
-    url: str = "sqlite:///database.db"
-    enable_echo: bool = False
-    on_create_account_trigger: str = ""
-    on_create_media_trigger: str = ""
-
-
-@dataclass
 class BasicClassConfig:
     cls: str = ""
     config: dict = field(default_factory=lambda: {})
@@ -118,3 +110,22 @@ class BasicClassConfig:
 @dataclass
 class BasicClassItem:
     config: dict
+
+
+@dataclass
+class DatabaseConfig:
+    url: str = "sqlite:///database.db"
+    enable_echo: bool = False
+    on_create_account_trigger: str = ""
+    on_create_media_trigger: str = ""
+
+
+@dataclass
+class HuntingConfig:
+    triggers: dict[str, BasicClassConfig] = field(default_factory=lambda: {})
+    hunters: dict[str, BasicClassConfig] = field(default_factory=lambda: {})
+
+
+@dataclass
+class AnalyzeConfig:
+    pass

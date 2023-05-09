@@ -25,9 +25,7 @@ dependencies = [
 [project.optional-dependencies]
 cli = ["rich"]
 tui = ["textual"]
-youtube = ["python-youtube"]
-tiktok = ["python-tiktok"]
-hunters = ["python-youtube", "python-tiktok"]
+hunting = ["python-youtube", "python-tiktok"]
 full = [
     "rich",
     "textual",
@@ -61,8 +59,8 @@ dev = [
 "Bug Tracker" = "https://github.com/axju/metrico/issues"
 
 [project.entry-points."metrico.hunters"]
-test = "metrico.hunters.test:TestHunter"
-youtube = "metrico.hunters.youtube:YoutubeHunter"
+test = "metrico.hunting.hunters.test:TestHunter"
+youtube = "metrico.hunting.hunters.youtube:YoutubeHunter"
 
 [project.scripts]
 metrico = "metrico.cli:main"
@@ -149,6 +147,15 @@ profile = "black"
 multi_line_output = 3
 indent = 4
 color_output = true
+
+
+[tool.ruff]
+ignore = ["E722"]
+line-length = 160
+target-version = "py310"
+
+[tool.ruff.mccabe]
+max-complexity = 10
 
 
 [tool.tox]

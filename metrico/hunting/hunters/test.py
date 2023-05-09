@@ -8,7 +8,7 @@ from logging import getLogger
 from faker import Faker  # pylint: disable=import-error
 
 from metrico import schemas
-from metrico.core.hunting.basic import BasicHunter
+from metrico.hunting.hunters.basic import BasicHunter
 
 logger = getLogger(__name__)
 

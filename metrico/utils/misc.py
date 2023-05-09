@@ -1,10 +1,21 @@
 from typing import Any, Callable
 
-from logging import getLogger
+from logging import Formatter, StreamHandler, getLogger
 from threading import Thread
 from time import sleep
 
 logger = getLogger(__name__)
+
+
+def config_logger(verbose: int, name: str | None = None):
+    _logger = getLogger(name)
+    level = 40 - verbose * 10 if verbose <= 3 else 30
+    _logger.setLevel(level)
+    handler = StreamHandler()
+    handler.setLevel(level)
+    formatter = Formatter("%(asctime)s - %(name)20s - %(levelname)6s - %(message)s")
+    handler.setFormatter(formatter)
+    _logger.addHandler(handler)
 
 
 def thread_call(obj_ids, update_func, kwargs, threads_count) -> bool:

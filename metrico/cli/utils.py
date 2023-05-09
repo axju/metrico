@@ -4,10 +4,10 @@ from datetime import datetime
 from dateutil import tz
 from rich.console import Console
 
-from metrico.core import MetricoCore
+from metrico import MetricoConfig
 from metrico.database.query import AccountOrder, MediaCommentOrder, MediaOrder
 from metrico.schemas import ModelStatus
-from metrico.utils import config_logger
+from metrico.utils.misc import config_logger
 
 console = Console()
 
@@ -65,14 +65,14 @@ class MetricoArgumentParser(ArgumentParser):
         args = super().parse_args(args=argv)
         if args.verbose:
             config_logger(args.verbose, name="metrico")
-        metrico: MetricoCore = MetricoCore(filename=args.config) if args.config else MetricoCore.default()
-        return metrico, args
+        config: MetricoConfig = MetricoConfig.load(path=args.config) if args.config else MetricoConfig.default()
+        return config, args
 
 
 class MetricoBasicFilterArgumentParser(MetricoArgumentParser):
     def __init__(self, prog):
         super().__init__(prog)
-        self.add_argument("--limit", type=int, default=20)
+        self.add_argument("--limit", type=int)
         self.add_argument("--offset", type=int)
         self.add_argument("--order_asc", action="store_true")
         self.add_argument("--filter_status", type=lambda x: ModelStatus[x], choices=list(ModelStatus))
@@ -81,39 +81,39 @@ class MetricoBasicFilterArgumentParser(MetricoArgumentParser):
         self.add_argument("--filter_account_id", nargs="*", type=int)
 
 
-def basic_filter_arguments(parser):
-    parser.add_argument("--limit", type=int, default=20)
-    parser.add_argument("--offset", type=int)
-    parser.add_argument("--order_asc", action="store_true")
-    parser.add_argument("--filter_status", type=lambda x: ModelStatus[x], choices=list(ModelStatus))
-    parser.add_argument("--filter_datetime", nargs=2, type=lambda s: datetime.strptime(s, "%Y-%m-%d"))
-    parser.add_argument("--filter_account", nargs="*", type=str)
-    parser.add_argument("--filter_account_id", nargs="*", type=int)
-    return parser
-
-
-def parser_add_argument_account_filter(parser):
-    parser = basic_filter_arguments(parser)
-    parser.add_argument("--order_by", type=lambda x: AccountOrder[x], choices=list(AccountOrder))
-    parser.add_argument("--filter_stats_null", action="store_true")
-    parser.add_argument("--filter_stats_views_null", action="store_true")
-    parser.add_argument("--filter_comment_media_id", nargs="*", type=int)
-    parser.add_argument("--filter_comment_media_account_id", nargs="*", type=int)
-    return parser
-
-
-def parser_add_argument_media_filter(parser):
-    parser = basic_filter_arguments(parser)
-    parser.add_argument("--order_by", type=lambda x: MediaOrder[x], choices=list(MediaOrder))
-    return parser
-
-
-def parser_add_argument_media_comment_filter(parser):
-    parser = basic_filter_arguments(parser)
-    parser.add_argument(
-        "--order_by",
-        type=lambda x: MediaCommentOrder[x],
-        choices=list(MediaCommentOrder),
-    )
-    parser.add_argument("--filter_media_account_id", nargs="*", type=int)
-    return parser
+# def basic_filter_arguments(parser):
+#     parser.add_argument("--limit", type=int, default=20)
+#     parser.add_argument("--offset", type=int)
+#     parser.add_argument("--order_asc", action="store_true")
+#     parser.add_argument("--filter_status", type=lambda x: ModelStatus[x], choices=list(ModelStatus))
+#     parser.add_argument("--filter_datetime", nargs=2, type=lambda s: datetime.strptime(s, "%Y-%m-%d"))
+#     parser.add_argument("--filter_account", nargs="*", type=str)
+#     parser.add_argument("--filter_account_id", nargs="*", type=int)
+#     return parser
+#
+#
+# def parser_add_argument_account_filter(parser):
+#     parser = basic_filter_arguments(parser)
+#     parser.add_argument("--order_by", type=lambda x: AccountOrder[x], choices=list(AccountOrder))
+#     parser.add_argument("--filter_stats_null", action="store_true")
+#     parser.add_argument("--filter_stats_views_null", action="store_true")
+#     parser.add_argument("--filter_comment_media_id", nargs="*", type=int)
+#     parser.add_argument("--filter_comment_media_account_id", nargs="*", type=int)
+#     return parser
+#
+#
+# def parser_add_argument_media_filter(parser):
+#     parser = basic_filter_arguments(parser)
+#     parser.add_argument("--order_by", type=lambda x: MediaOrder[x], choices=list(MediaOrder))
+#     return parser
+#
+#
+# def parser_add_argument_media_comment_filter(parser):
+#     parser = basic_filter_arguments(parser)
+#     parser.add_argument(
+#         "--order_by",
+#         type=lambda x: MediaCommentOrder[x],
+#         choices=list(MediaCommentOrder),
+#     )
+#     parser.add_argument("--filter_media_account_id", nargs="*", type=int)
+#     return parser

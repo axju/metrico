@@ -1,15 +1,18 @@
 # type: ignore
+# ruff: noqa: F821
 from rich.live import Live
 from rich.table import Column, Table
 
+from metrico import Hunter
 from metrico.analyze import get_lost
 from metrico.cli.utils import MetricoBasicFilterArgumentParser, find_index
-from metrico.core import MetricoCore
-from metrico.core.utils import update_list
+from metrico.database import MetricoDB
 from metrico.database.query import AccountOrder, AccountQuery
+from metrico.utils.config import MetricoConfig
+from metrico.utils.misc import update_list
 
 
-def list_accounts(metrico: MetricoCore, args):
+def list_accounts(config: MetricoConfig, args):
     headers = [
         Column(header="ID", justify="right"),
         "Status",
@@ -36,9 +39,10 @@ def list_accounts(metrico: MetricoCore, args):
         show_lines=True,
         # row_styles=["magenta", "white on magenta dim"],
     )
+    db = MetricoDB(config=config)
     with Live(table, refresh_per_second=4):
         account_query = AccountQuery.from_namespace(args)
-        for account in metrico.db.iter_query(account_query):
+        for account in db.iter_query(account_query):
             values = [
                 f"{account.id}",
                 f"{account.status}",
@@ -99,36 +103,43 @@ def parse_args():
     sub_list.add_argument("--lost_limit", type=int, default=50, help="Limit for the medias")
 
     sub_update = subparsers.add_parser("update")
-    sub_update.add_argument("--threads", type=int, default=8)
-    sub_update.add_argument("--media_count", type=int, default=-1)
-    sub_update.add_argument("--comment_count", type=int, default=-1)
-    sub_update.add_argument("--subscription_count", type=int, default=-1)
+    sub_update.add_argument("--threads", type=int, default=8, help="Parallel hunting, default=8")
+    sub_update.add_argument("--media_count", type=int, default=-1, help="-2 = only new, -1 = skipp; 0 = alle, n = last n medias, default=-1")
+    sub_update.add_argument("--comment_count", type=int, default=-1, help="-2 = only new, -1 = skipp; 0 = alle, n = last n comments, default=-1")
+    sub_update.add_argument("--subscription_count", type=int, default=-1, help="-2 = only new, -1 = skipp; 0 = alle, n = last n subscription, default=-1")
 
     subparsers.add_parser("count")
 
-    metrico, args = parser.parse_args()
-    return parser, metrico, args
+    config, args = parser.parse_args()
+    return parser, config, args
 
 
 def main() -> int:
-    parser, metrico, args = parse_args()
+    parser, config, args = parse_args()
     match args.action:
         case "list":
-            list_accounts(metrico, args)
+            list_accounts(config, args)
 
         case "count":
             sub_stmt = AccountQuery.from_namespace(args)
-            print(metrico.db.count_query(sub_stmt))
+            db = MetricoDB(config.db)
+            print(db.count_query(sub_stmt))
 
         case "update":
-            update_list(
-                [obj.id for obj in metrico.db.iter_query(AccountQuery.from_namespace(args))],
-                metrico.update_account,
-                args.threads,
+            Hunter(config=config).update_query(
+                query=AccountQuery.from_namespace(args),
                 media_count=args.media_count,
                 comment_count=args.comment_count,
                 subscription_count=args.subscription_count,
             )
+            # update_list(
+            #     [obj.id for obj in metrico.db.iter_query(AccountQuery.from_namespace(args))],
+            #     metrico.update_account,
+            #     args.threads,
+            #     media_count=args.media_count,
+            #     comment_count=args.comment_count,
+            #     subscription_count=args.subscription_count,
+            # )
 
         case _:
             parser.print_help()
